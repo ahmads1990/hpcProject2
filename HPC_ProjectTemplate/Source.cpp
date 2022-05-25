@@ -5,7 +5,8 @@
 #include<msclr\marshal_cppstd.h>
 #include <ctime>// include this header 
 #pragma once
-#include <mpi.h>
+#include<mpi.h>
+
 #using <mscorlib.dll>
 #using <System.dll>
 #using <System.Drawing.dll>
@@ -15,9 +16,8 @@ using namespace msclr::interop;
 
 int* inputImage(int* w, int* h, System::String^ imagePath) //put the size of image in w & h
 {
+
 	int* input;
-
-
 	int OriginalImageWidth, OriginalImageHeight;
 
 	//*********************************************************Read Image and save it to local arrayss*************************	
@@ -29,10 +29,10 @@ int* inputImage(int* w, int* h, System::String^ imagePath) //put the size of ima
 	OriginalImageHeight = BM.Height;
 	*w = BM.Width;
 	*h = BM.Height;
-	int *Red = new int[BM.Height * BM.Width];
-	int *Green = new int[BM.Height * BM.Width];
-	int *Blue = new int[BM.Height * BM.Width];
-	input = new int[BM.Height*BM.Width];
+	int* Red = new int[BM.Height * BM.Width];
+	int* Green = new int[BM.Height * BM.Width];
+	int* Blue = new int[BM.Height * BM.Width];
+	input = new int[BM.Height * BM.Width];
 	for (int i = 0; i < BM.Height; i++)
 	{
 		for (int j = 0; j < BM.Width; j++)
@@ -43,7 +43,7 @@ int* inputImage(int* w, int* h, System::String^ imagePath) //put the size of ima
 			Blue[i * BM.Width + j] = c.B;
 			Green[i * BM.Width + j] = c.G;
 
-			input[i*BM.Width + j] = ((c.R + c.B + c.G) / 3); //gray scale value equals the average of RGB values
+			input[i * BM.Width + j] = ((c.R + c.B + c.G) / 3); //gray scale value equals the average of RGB values
 
 		}
 
@@ -62,164 +62,212 @@ void createImage(int* image, int width, int height, int index)
 		for (int j = 0; j < MyNewImage.Width; j++)
 		{
 			//i * OriginalImageWidth + j
-			if (image[i*width + j] < 0)
+			if (image[i * width + j] < 0)
 			{
-				image[i*width + j] = 0;
+				image[i * width + j] = 0;
 			}
-			if (image[i*width + j] > 255)
+			if (image[i * width + j] > 255)
 			{
-				image[i*width + j] = 255;
+				image[i * width + j] = 255;
 			}
-			System::Drawing::Color c = System::Drawing::Color::FromArgb(image[i*MyNewImage.Width + j], image[i*MyNewImage.Width + j], image[i*MyNewImage.Width + j]);
+			System::Drawing::Color c = System::Drawing::Color::FromArgb(image[i * MyNewImage.Width + j], image[i * MyNewImage.Width + j], image[i * MyNewImage.Width + j]);
 			MyNewImage.SetPixel(j, i, c);
 		}
 	}
 	MyNewImage.Save("..//Data//Output//outputRes" + index + ".png");
 	cout << "result Image Saved " << index << endl;
 }
+static string ext = ".png";
+//this function should take n images from the folder and then put them in a dynamic array
+//the big array  is the number of the images and the small arrays is the size of each image 
+int** inputVideoframe(int n, int* w, int* h) //put the size of image in w & h
+{
+	int** image_array = new int* [n];
+	System::String^ imagePath;
+	string img, image_num, image;
+	int width = 0, hight = 0;
+	for (int i = 1; i <= n; i++)
+	{
+		string s;
+		if (i <= 9)
+		{
+			s = "00" + to_string(i);
+		}
+		else if (i <= 99)
+		{
+			s = "0" + to_string(i);
+		}
+		else
+		{
+			s = to_string(i);
+		}
+		image_num = s;
+		image = image_num + ext;
+		img = "..//Data//Input//in000" + s;
+		string NewPath = img  + ".jpg";
+		imagePath = marshal_as<System::String^>(NewPath);
+		int* imageData = inputImage(&*w, &*h, imagePath);
+
+		image_array[i - 1] = new int[*w * *h];
+		image_array[i - 1] = imageData;
 
 
+	}
+
+	return image_array;
+}
 int main()
 {
-	MPI_Init(NULL, NULL);
-	//data
-	int ImageWidth = 4, ImageHeight = 4;
-	int ImageSize=4;
-	//selecting data
-	int threshold;
-	int chosenThresholdImageNum = 158;
-	//image containters
-	int** totalImageArray=NULL;//M*n^2 holds all the data
-	int* chosenThresholdImage=NULL;//hold the chosen image
-	//495 pictures
-	const int M = 495;
-	//image path
-	System::String^ imagePath;
-	std::string imagePathFirstPart;
-	imagePathFirstPart = "..//Data//Input//in000";
-	string imageExtenstion = ".jpg";
-	//mpi data
-	int size;
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
-	int rank;
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	//for the master proccessor
-	if (rank == 0)
+	MPI_Init(NULL, NULL);
+	//getchar();
+	int w = 0, h = 0;
+
+	int world_size;
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+	int world_rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+	int full_size_of_img = 0;
+
+
+	int** image_array = 0;
+	int* threshold_img = 0;
+	int imagenumber;
+	int threshold;
+
+	if (world_rank == 0)
 	{
+		//to input the image 
+		imagenumber = 495;
 		threshold = 20;
-		//read selected thresh hold image
-		//create path
-		string NewPath = imagePathFirstPart + to_string(chosenThresholdImageNum) + imageExtenstion;
-		imagePath = marshal_as<System::String^>(NewPath);
-		//read it
-		chosenThresholdImage = inputImage(&ImageWidth, &ImageHeight, imagePath);
-		//assign image size
-		ImageSize = ImageWidth * ImageHeight;
-		//
-		totalImageArray = new int* [M];
-		//read all data
-		for (int i = 1; i <= M; i++)
-		{
-			// fill index to be 3 digit (1 => 001 , 99 => 099)
-			// get image path = orignal+index+extention
-			string s;
-			if (i <= 9) { s = "00" + to_string(i); }
-			else if (i <= 99) { s = "0" + to_string(i); }
-			else { s = to_string(i); }
-			string NewPath = imagePathFirstPart + s + imageExtenstion;
-			cout << NewPath << endl;
-			// load it
-			imagePath = marshal_as<System::String^>(NewPath);
-			totalImageArray[i - 1] = inputImage(&ImageWidth, &ImageHeight, imagePath);
-		}
+		image_array = inputVideoframe(imagenumber, &w, &h);
+
+		//threshold pic
+		string img = "..//Data//BackGround//in000160" + ext;
+		System::String^ imagePath = marshal_as<System::String^>(img);
+		threshold_img = inputImage(&w, &h, imagePath);
+
+		full_size_of_img = w * h;
+
 	}
-	cout << "thresh old " << threshold;
-	int* imageArrayAverage = new int[ImageSize];
-	int* imageArraySubtraction = new int[ImageSize];
+	MPI_Bcast(&imagenumber, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&full_size_of_img, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&threshold, 1, MPI_INT, 0, MPI_COMM_WORLD);
-	//MPI_Bcast(&chosenThresholdImage, ImageSize, MPI_INT, 0, MPI_COMM_WORLD);
-	//here start distrubuting the data
-	//each proccessor will take portions(columns)
-	int localArraySize = ImageSize / size;
-	int** localArray = new int*[M];
-	//for each image
-	for (int i = 0; i < M; ++i)
-	{    
-		//master proccessor
-		if (rank == 0)
+
+	int** local_image_array = new int* [imagenumber];
+	int* Resultbackgroundimage = new int[full_size_of_img];
+	int* Resultforeground = new int[full_size_of_img];
+	int local_arr_size = (full_size_of_img) / world_size;
+
+	for (int i = 0; i < imagenumber; i++)
+	{
+		if (world_rank == 0)
 		{
-			//send first n columns in image i
-			for (int procRank = 1; procRank < size; procRank++)
-				MPI_Send(&totalImageArray[i][localArraySize * procRank], localArraySize, MPI_INT, procRank, 0, MPI_COMM_WORLD);
-		
-			if (i==M-1)
+
+			for (int j = 1; j < world_size; j++)
 			{
-				for (int k = 1; k < size; k++)
+				MPI_Send(&image_array[i][j * local_arr_size], local_arr_size, MPI_INT, j, 0, MPI_COMM_WORLD);
+			}
+
+			//if processor 0 took all the first parts from all the images start summing them and divide it by the number of images
+			int sum = 0;
+			for (int x = 0; x < local_arr_size; x++) {
+				for (int k = 0; k < imagenumber; k++) {
+
+					sum += image_array[k][x];
+
+				}
+				sum /= imagenumber;
+				Resultbackgroundimage[x] = sum;
+				int diff = abs(Resultbackgroundimage[x] - threshold_img[x]);
+				if (diff > threshold)
+				{
+					Resultforeground[x] = diff;
+				}
+
+				else
+				{
+					Resultforeground[x] = 0;
+				}
+
+
+			}
+			//if its the last iteration processor 0 will start collecting all the parts of the image from other processors and create it
+			if (i == imagenumber - 1) {
+				/*
+				for (int j = 1; j < world_size; j++)
+				{
+					MPI_Send(&threshold_img[j * local_arr_size], local_arr_size, MPI_INT, j, 0, MPI_COMM_WORLD);
+
+				}
+				*/
+				for (int k = 1; k < world_size; k++)
 				{
 					MPI_Status status;
-					MPI_Send(&chosenThresholdImage[localArraySize * k], localArraySize, MPI_INT, k, 0, MPI_COMM_WORLD);
-					MPI_Recv(&imageArrayAverage[k * localArraySize], localArraySize, MPI_INT, k, 0, MPI_COMM_WORLD, &status);
-					MPI_Recv(&imageArraySubtraction[k * localArraySize], localArraySize, MPI_INT, k, 0, MPI_COMM_WORLD, &status);
+					MPI_Send(&threshold_img[k * local_arr_size], local_arr_size, MPI_INT, k, 0, MPI_COMM_WORLD);
+					MPI_Recv(&Resultbackgroundimage[k * local_arr_size], local_arr_size, MPI_INT, k, 0, MPI_COMM_WORLD, &status);
+					MPI_Recv(&Resultforeground[k * local_arr_size], local_arr_size, MPI_INT, k, 0, MPI_COMM_WORLD, &status);
 				}
-				createImage(imageArrayAverage, ImageWidth, ImageHeight, 0);
-				createImage(imageArraySubtraction, ImageWidth, ImageHeight, 1);
+
+
+
+				createImage(Resultbackgroundimage, w, h, 0);
+				createImage(Resultforeground, w, h, 1);
+
 			}
+
 		}
-		if (rank < size)
+		else if (world_rank <= world_size)
 		{
+
+			//each processor recieve part of the image and save it in local image array
+			local_image_array[i] = new int[local_arr_size];
+
 			MPI_Status status;
-			localArray[i] = new int[localArraySize];
-			//receive n columnns in image i
-			MPI_Recv(localArray[i], localArraySize, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-			//when i receive all the data in M images
-			//i = 495  m=496-1=>495 final image
-			if (i == M - 1)
+			MPI_Recv(local_image_array[i], local_arr_size, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+
+
+			//if it recived all the parts of the image it will start working on them
+			if (i == imagenumber - 1)
 			{
-				int localSum = 0;
-				//create 2 arrays 1-backgroundMean B 2-resultOfSubtraction
-				int* localBackGroundMean = new int[M];
-				int* localImageSubtraction = new int[M];
-				//get the value of threshold
-				int localThreshold=threshold;
-				//MPI_Recv(&localThreshold, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-				//get the chosen image
-				int* localChosenImage = new int[ImageSize];
-				MPI_Recv(&localChosenImage, ImageSize, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-				//here sum all of them
-				//for each pixel (column)
-				for (int localColumn = 0; localColumn < localArraySize; localColumn++)
-				{
-					//for each image (row)
-					for (int localRow = 0; localRow < M; localRow++)
-					{
-						localSum += localArray[localRow][localColumn];
+				int* local_threshold = new int[local_arr_size];
+				MPI_Recv(local_threshold, local_arr_size, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+
+				int sum = 0;
+				int* localbackgroundimage = new int[local_arr_size];
+				int* local_forground = new int[local_arr_size];
+
+				for (int x = 0; x < local_arr_size; x++) {
+					for (int k = 0; k < imagenumber; k++) {
+
+						sum += local_image_array[k][x];
+
 					}
-					//got the sum of pixel (in column) then get mean
-					localSum /= M;
-					localBackGroundMean[localColumn] = localSum;
-					localSum = 0;
-					//get the subtraction
-					int subResult = abs(localBackGroundMean[localColumn] - localChosenImage[localColumn]);
-					if (subResult > localThreshold)
+					sum /= imagenumber;
+					localbackgroundimage[x] = sum;
+					int diff = abs(localbackgroundimage[x] - local_threshold[x]);
+					if (diff > threshold)
 					{
-						localImageSubtraction[localColumn] = 0;
+						local_forground[x] = diff;
+
 					}
 					else
 					{
-						localImageSubtraction[localColumn] = subResult;
+						local_forground[x] = 0;
 					}
+
+
 				}
-				MPI_Send(localBackGroundMean, localArraySize, MPI_INT, 0, 0, MPI_COMM_WORLD);
-				MPI_Send(localChosenImage, localArraySize, MPI_INT, 0, 0, MPI_COMM_WORLD);
+				MPI_Send(localbackgroundimage, local_arr_size, MPI_INT, 0, 0, MPI_COMM_WORLD);
+				MPI_Send(local_forground, local_arr_size, MPI_INT, 0, 0, MPI_COMM_WORLD);
 			}
 		}
+
 	}
-	cout << "finished";
+
+
 	MPI_Finalize();
 	system("pause");
 	return 0;
+
 }
-
-
-

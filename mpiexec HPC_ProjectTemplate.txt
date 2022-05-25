@@ -1,0 +1,3 @@
+d:
+cd D:\Study\High Performance Computing\Project\HPC_ProjectTemplate\Debug
+mpiexec "HPC_ProjectTemplate.exe"
